@@ -1,0 +1,111 @@
+model:
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
+
+  prefusion_uq_modules:
+    camera:
+      type: UOTUncertainty
+      enabled: true
+      feature_index: 0
+      downsample: 2
+      max_tokens: 3072
+      detach_inputs: true
+      update_bank: true
+      bank_update_on_eval: true
+      pooling: mean
+      sinkhorn:
+        epsilon: 0.7
+        rho: 0.5
+        max_iters: 25
+        tol: 5.0e-4
+      feature_bank:
+        max_size: 2048
+        momentum: 0.985
+        normalize: true
+      loss_adapter:
+        enabled: true
+        alpha: 0.2
+        target: 0.35
+        min_scale: 0.5
+        max_scale: 1.5
+      fusion_weight:
+        enabled: true
+        beta: 1.3
+        min: 0.25
+        max: 1.0
+        ema_decay: 0.9
+    lidar:
+      type: UOTUncertainty
+      enabled: true
+      feature_index: 0
+      downsample: 2
+      max_tokens: 2048
+      detach_inputs: true
+      update_bank: true
+      bank_update_on_eval: true
+      pooling: mean
+      sinkhorn:
+        epsilon: 0.6
+        rho: 0.5
+        max_iters: 25
+        tol: 5.0e-4
+      feature_bank:
+        max_size: 2048
+        momentum: 0.99
+        normalize: true
+      loss_adapter:
+        enabled: true
+        alpha: 0.1
+        target: 0.25
+        min_scale: 0.6
+        max_scale: 1.4
+      fusion_weight:
+        enabled: true
+        beta: 0.8
+        min: 0.4
+        max: 1.0
+        ema_decay: 0.85
+  prefusion_fusion:
+    normalize_weights: true
+    default: 1.0
+    scale_by_num: true
+    eps: 1.0e-3
+    min_value: 0.2
+    max_value: 1.5
+
+# Freeze backbone only during stage-1; disable before resuming stage-2.
+freeze_backbone:
+  enabled: false
+  module_paths: ["encoders", "decoder"]
+  freeze_epochs: 0
+
+optimizer:
+  type: AdamW
+  lr: 2.0e-4
+  weight_decay: 0.01
+  paramwise_cfg:
+    custom_keys:
+      absolute_pos_embed:
+        decay_mult: 0.0
+      relative_position_bias_table:
+        decay_mult: 0.0
+      encoders.camera.backbone:
+        lr_mult: 0.1
+      encoders.lidar.backbone:
+        lr_mult: 0.1
+      decoder.backbone:
+        lr_mult: 0.3
+
+optimizer_config:
+  grad_clip:
+    max_norm: 10.0
+    norm_type: 2
+
+lr_config:
+  policy: CosineAnnealing
+  warmup: linear
+  warmup_iters: 500
+  warmup_ratio: 1.0e-3
+  min_lr_ratio: 1.0e-3
